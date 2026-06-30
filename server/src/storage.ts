@@ -74,17 +74,22 @@ export async function listImages(): Promise<ImageItem[]> {
 
   return entries
     .filter((entry) => entry.type === "file" && isSupportedImage(entry.filename ?? entry.basename ?? ""))
-    .map((entry) => {
-      const sourcePath = entry.filename;
-      const name = entry.basename ?? path.posix.basename(sourcePath);
+    .flatMap((entry) => {
+      const sourcePath = entry.filename ?? entry.basename;
 
-      return {
-        id: encodeImageId(sourcePath),
-        name,
-        sourcePath,
-        size: entry.size,
-        lastModified: entry.lastmod,
-      };
+      if (!sourcePath) {
+        return [];
+      }
+
+      return [
+        {
+          id: encodeImageId(sourcePath),
+          name: entry.basename ?? path.posix.basename(sourcePath),
+          sourcePath,
+          size: entry.size,
+          lastModified: entry.lastmod,
+        },
+      ];
     })
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 }
@@ -189,8 +194,9 @@ async function assertLocalFolderExists() {
 function resolveSafeLocalPath(sourcePath: string) {
   const baseFolder = path.resolve(config.localImageFolder);
   const fullPath = path.resolve(baseFolder, sourcePath);
+  const relativePath = path.relative(baseFolder, fullPath);
 
-  if (!fullPath.startsWith(baseFolder)) {
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     throw new Error("Invalid image path.");
   }
 
